@@ -1,2 +1,4 @@
 */__pycache__/
 tutorial/
+data/VOCdevkit/
+data/VOCtrainval_06-Nov-2007.tar
