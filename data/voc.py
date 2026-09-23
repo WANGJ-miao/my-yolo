@@ -11,8 +11,8 @@ from PIL import Image
 # import matplotlib.pyplot as plt
 # import matplotlib.patches as patches
 from torchvision.transforms import functional as F
-from transform import resize_image_and_boxes
-from visualization import draw_boxes
+from data.transform import resize_image_and_boxes
+from data.visualization import draw_boxes
 
 VOC_CLASSES = [
     "person",
@@ -60,7 +60,7 @@ class VOCDataset(Dataset):
         "bboxes": torch.tensor (2 dim)
     }
     """
-    def __init__(self, voc_root, split="train"):
+    def __init__(self, voc_root=Path("data/VOCdevkit/VOC2007"), split="train"):
         self.VOC_ROOT = Path(voc_root) 
         self.images_dir = self.VOC_ROOT / "JPEGImages"
         self.annotation_dir = self.VOC_ROOT / "Annotations"
@@ -163,20 +163,10 @@ if __name__ == "__main__":
     # test
     VOC_ROOT = Path("data/VOCdevkit/VOC2007")
     dataset = VOCDataset(VOC_ROOT, split="train")
-    # for i in range(10):
-    #     image, target = dataset[i]
-    #     image = F.to_pil_image(image)
-    #     boxes = target["bboxes"]
-    #     draw_boxes(image, boxes)
     dataloader = DataLoader(dataset, batch_size=200, shuffle=False)
     for images, targets in dataloader:
         image = images[0]
         target = targets[0]
-        image = F.to_pil_image(image)
         boxes = target["bboxes"]
         draw_boxes(image, boxes)
-        # print("len of images: ", len(images))
-        # print(image.shape)
-        # print(target["bboxes"])
-        # print(target["labels"])
         break
