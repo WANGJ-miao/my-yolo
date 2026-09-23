@@ -124,7 +124,8 @@ class VOCDataset(Dataset):
         boxes = torch.tensor(boxes, dtype=torch.float32)
         labels = torch.tensor(labels, dtype=torch.long)
         # transform to fixed size
-        image, boxes = resize_image_and_boxes(image, boxes)
+        size = (500, 500)
+        image, boxes = resize_image_and_boxes(image, boxes, size)
         target = {
             "bboxes": boxes,
             "labels": labels
@@ -161,12 +162,21 @@ class DataLoader():
 if __name__ == "__main__":
     # test
     VOC_ROOT = Path("data/VOCdevkit/VOC2007")
-    dataset = VOCDataset(VOC_ROOT, split="val")
+    dataset = VOCDataset(VOC_ROOT, split="train")
     # for i in range(10):
     #     image, target = dataset[i]
     #     image = F.to_pil_image(image)
     #     boxes = target["bboxes"]
     #     draw_boxes(image, boxes)
-    dataloader = DataLoader(dataset, batch_size=100, shuffle=False)
+    dataloader = DataLoader(dataset, batch_size=200, shuffle=False)
     for images, targets in dataloader:
-        print("len of images: ", len(images))
+        image = images[0]
+        target = targets[0]
+        image = F.to_pil_image(image)
+        boxes = target["bboxes"]
+        draw_boxes(image, boxes)
+        # print("len of images: ", len(images))
+        # print(image.shape)
+        # print(target["bboxes"])
+        # print(target["labels"])
+        break
