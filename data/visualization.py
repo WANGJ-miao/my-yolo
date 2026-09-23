@@ -1,3 +1,5 @@
+import math
+
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from torchvision.transforms import functional as F
@@ -27,4 +29,36 @@ def draw_boxes(image, boxes, mode="xyxy"):
             height = ymax - ymin
         rect = patches.Rectangle((xmin, ymin), width, height, fill=False, linewidth=2, color="green")
         ax.add_patch(rect)
+    plt.show()
+
+def draw_serveral_images(images, boxes_list, mode="xyxy"):
+    """
+    images is a list of torch tensor
+    boxes_list is a list of bounding boxes :)
+    mode: xyxy or xywh
+    """
+    num = len(images)
+    if num == 1:
+        draw_boxes(images[0], boxes_list[0], mode=mode)
+        return
+    ncols = math.ceil(num / 2)
+    fig, axes = plt.subplots(nrows=2, ncols=ncols)
+    for ax, image, boxes in zip(axes.flatten(), images, boxes_list): 
+        ax.imshow(F.to_pil_image(image))
+        for box in boxes:
+            if mode == "xyxy":
+                xmin, ymin, xmax, ymax = box
+                width = xmax - xmin
+                height = ymax - ymin
+            elif mode == "xywh":
+                cx, cy, width, height = box
+                xmin = cx - width / 2
+                ymin = cy - height / 2
+            else:
+                print("mode should be either xyxy or xywh! fall to default xyxy")
+                xmin, ymin, xmax, ymax = box
+                width = xmax - xmin
+                height = ymax - ymin
+            rect = patches.Rectangle((xmin, ymin), width, height, fill=False, linewidth=2, color="green")
+            ax.add_patch(rect)
     plt.show()
