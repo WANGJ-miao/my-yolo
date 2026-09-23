@@ -46,7 +46,7 @@ CLASS_TO_IDX = {
     for idx, name in enumerate(VOC_CLASSES)
 }
 
-input_image_size = (460, 460) # height width
+input_image_size = (448, 448) # height width
 
 class VOCDataset(Dataset):
     """
