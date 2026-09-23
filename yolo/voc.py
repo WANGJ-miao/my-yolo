@@ -11,8 +11,12 @@ from PIL import Image
 # import matplotlib.pyplot as plt
 # import matplotlib.patches as patches
 from torchvision.transforms import functional as F
-from data.transform import resize_image_and_boxes
-from data.visualization import draw_boxes
+
+from yolo.transform import resize_image_and_boxes
+from yolo.visualization import draw_boxes
+from utils.box import xyxy2cxcywh
+# test
+from yolo.visualization import draw_serveral_images
 
 VOC_CLASSES = [
     "person",
@@ -41,6 +45,8 @@ CLASS_TO_IDX = {
     name: idx
     for idx, name in enumerate(VOC_CLASSES)
 }
+
+input_image_size = (460, 460) # height width
 
 class VOCDataset(Dataset):
     """
@@ -124,14 +130,61 @@ class VOCDataset(Dataset):
         boxes = torch.tensor(boxes, dtype=torch.float32)
         labels = torch.tensor(labels, dtype=torch.long)
         # transform to fixed size
-        size = (500, 500)
-        image, boxes = resize_image_and_boxes(image, boxes, size)
+        image, boxes = resize_image_and_boxes(image, boxes, input_image_size)
         target = {
             "bboxes": boxes,
             "labels": labels
         }
 
         return image, target
+
+# target encoder
+def encode_target(target):
+    """
+    target = {
+        "bboxes": boxes,
+        "labels": labels
+    }
+    boxes: torch.tensor
+    [
+        [xmin, ymin, xmax, ymax],
+        [...]
+    ]
+    labels: torch.tensor
+    [class ids...]
+    返回值是一个25维的向量组
+    并且其中的坐标已经归一化
+    """
+    boxes = xyxy2cxcywh(target["bboxes"])
+    labels = target["labels"]
+    # num = len(labels)
+    # print("len of item in one target: ", num)
+    encoded_target = []
+    height = input_image_size[0]
+    width = input_image_size[1]
+    for box, label in zip(boxes, labels):
+        box = box.clone() # 原来的box只是boxes的一个视图， 所以避免直接修改原来的boxes, 这里先clone
+        box[[0, 2]] /= width
+        box[[1, 3]] /= height
+        objectness = torch.tensor([1])
+        class_score = torch.tensor([0] * 20)
+        # print("label: ", label, VOC_CLASSES[label])
+        # print("objectness length:", len(objectness))
+        # print("box length:", len(box))
+        # print("label:", label)
+        class_score[label] = 1
+        encoded_target.append(torch.cat([box, objectness, class_score], dim=0))
+    return torch.stack(encoded_target)
+
+def encode_targets(targets):
+    """
+    targets need to be iterable
+    返回targets list
+    """
+    new_targets = []
+    for target in targets:
+        new_targets.append(encode_target(target))
+    return new_targets
 
 def collate_fn(batch):
     """
@@ -145,6 +198,7 @@ def collate_fn(batch):
 class DataLoader():
     """provide __iter__ method, returning data batch"""
     def __init__(self, dataset, batch_size, shuffle=True, collate_fn=collate_fn):
+        # TODO implement shuffle
         self.batch_size = batch_size
         self.dataset = dataset
         self.collate_fn = collate_fn
@@ -157,16 +211,16 @@ class DataLoader():
                 sample = self.dataset[i]
                 batch.append(sample)
             images, targets = collate_fn(batch)
+            targets=encode_targets(targets)
             yield images, targets
 
 if __name__ == "__main__":
     # test
-    VOC_ROOT = Path("data/VOCdevkit/VOC2007")
-    dataset = VOCDataset(VOC_ROOT, split="train")
-    dataloader = DataLoader(dataset, batch_size=200, shuffle=False)
-    for images, targets in dataloader:
-        image = images[0]
-        target = targets[0]
-        boxes = target["bboxes"]
-        draw_boxes(image, boxes)
-        break
+    dataset = VOCDataset()
+    dataloader = DataLoader(dataset, batch_size=4)
+    for i, (images, targets) in enumerate(dataloader):
+        boxes_list = [target[:, :4] for target in targets]
+        print(targets)
+        draw_serveral_images(images, boxes_list, mode="xywh", normalized=True, size=input_image_size)
+        if i >= 6:
+            break

@@ -3,6 +3,19 @@ Just to go through the whole process of training a computer vision model
 
 # Model: mini yolo3
 
+# project structure
+```plain_text
+.
+├── data
+│   └── VOCdevkit                   # data is here
+├── README.md
+├── utils                           # some useful functions
+└── yolo                            # the model
+    ├── transform.py
+    ├── visualization.py
+    └── voc.py
+```
+
 # DataSet: PASCAL VOC 2007
 20 kinds of items
 9963 pieces of pictures
