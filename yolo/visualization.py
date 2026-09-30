@@ -51,7 +51,7 @@ def draw_serveral_images(images, boxes_list, mode="xyxy", normalized=False, size
         True -> boxes are normalized to [0, 1]
         False -> boxes are already in pixel coordinates
     size:
-        (height, width) used when normalized = True
+        (width, height) used when normalized = True
     """
     if normalized and size is None:
         raise ValueError("size should be provided when normalized is True")

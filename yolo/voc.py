@@ -3,18 +3,18 @@
 # Vehicle: aeroplane, bicycle, boat, bus, car, motorbike, train
 # Indoor: bottle, chair, dining table, potted plant, sofa, tv/monitor
 
+import math
+
 import torch
 from pathlib import Path
 from torch.utils.data import Dataset
 import xml.etree.ElementTree as ET
 from PIL import Image
-# import matplotlib.pyplot as plt
-# import matplotlib.patches as patches
 from torchvision.transforms import functional as F
 
 from yolo.transform import resize_image_and_boxes
 from yolo.visualization import draw_boxes
-from utils.box import xyxy2cxcywh
+import utils.box
 # test
 from yolo.visualization import draw_serveral_images
 
@@ -46,7 +46,7 @@ CLASS_TO_IDX = {
     for idx, name in enumerate(VOC_CLASSES)
 }
 
-input_image_size = (448, 448) # height width
+input_image_size = (448, 448) # width height
 
 class VOCDataset(Dataset):
     """
@@ -138,8 +138,7 @@ class VOCDataset(Dataset):
 
         return image, target
 
-# target encoder
-def encode_target(target):
+def encode_target(target, S=7):
     """
     target = {
         "bboxes": boxes,
@@ -152,20 +151,33 @@ def encode_target(target):
     ]
     labels: torch.tensor
     [class ids...]
-    返回值是一个25维的向量组
-    并且其中的坐标已经归一化
+    Return: [
+                [tx, ty, w, h, objectness, 20 classes mask],
+                [tx, ty, w, h, objectness, 20 classes mask],
+                ...
+            ]
+        tx: normalized x axis offset inside a grid ("inside a grid" means the unit is grid)
+        ty: normalized y axis offset inside a grid
+        w: normalized width inside the image
+        h: normalized height inside the image
+        objectness: whether there is a item? yes: 1 no: 0
+        20 classes mask: [0, 0, ... , 1, 0, ...] the index indicates the class
     """
-    boxes = xyxy2cxcywh(target["bboxes"])
+    boxes = target["bboxes"]
     labels = target["labels"]
-    # num = len(labels)
-    # print("len of item in one target: ", num)
+    width = input_image_size[0]
+    height = input_image_size[1]
+    boxes = utils.box.xyxy2cxcywh(boxes) # torch.tensor
+    normalized_boxes = utils.box.normalize_boxes(boxes, input_image_size)
+    txty_boxes = utils.box.cxcywh2txtywh(normalized_boxes, S)
     encoded_target = []
-    height = input_image_size[0]
-    width = input_image_size[1]
-    for box, label in zip(boxes, labels):
-        box = box.clone() # 原来的box只是boxes的一个视图， 所以避免直接修改原来的boxes, 这里先clone
-        box[[0, 2]] /= width
-        box[[1, 3]] /= height
+    indexes = []
+    for box in normalized_boxes:
+        cx, cy = box[:2]
+        x_index = math.floor(cx * S)
+        y_index = math.floor(cy * S)
+        indexes.append((y_index, x_index))
+    for box, label in zip(txty_boxes, labels):
         objectness = torch.tensor([1])
         class_score = torch.tensor([0] * 20)
         # print("label: ", label, VOC_CLASSES[label])
@@ -174,9 +186,13 @@ def encode_target(target):
         # print("label:", label)
         class_score[label] = 1
         encoded_target.append(torch.cat([box, objectness, class_score], dim=0))
-    return torch.stack(encoded_target)
+    target_matrix = torch.zeros(size=(S, S, 25))
+    for index, item in zip(indexes, encoded_target):
+        y, x = index
+        target_matrix[y, x] = item
+    return target_matrix
 
-def encode_targets(targets):
+def encode_targets(targets, S=7):
     """
     targets need to be iterable
     返回targets list
@@ -186,7 +202,7 @@ def encode_targets(targets):
         new_targets.append(encode_target(target))
     return new_targets
 
-def collate_fn(batch):
+def default_collate_fn(batch):
     """
     batch is a list of tuples:(image, target)
     return a tuple (images:torch.tensor [N, C, H, W], targets:list of target)
@@ -197,7 +213,7 @@ def collate_fn(batch):
 
 class DataLoader():
     """provide __iter__ method, returning data batch"""
-    def __init__(self, dataset, batch_size, shuffle=True, collate_fn=collate_fn):
+    def __init__(self, dataset, batch_size, shuffle=True, collate_fn=default_collate_fn):
         # TODO implement shuffle
         self.batch_size = batch_size
         self.dataset = dataset
@@ -210,8 +226,9 @@ class DataLoader():
                 # 目前是如果最后一个batch不够分, 就有多少返回多少
                 sample = self.dataset[i]
                 batch.append(sample)
-            images, targets = collate_fn(batch)
+            images, targets = self.collate_fn(batch)
             targets=encode_targets(targets)
+            targets = torch.stack(targets)
             yield images, targets
 
 if __name__ == "__main__":
@@ -221,6 +238,7 @@ if __name__ == "__main__":
     for i, (images, targets) in enumerate(dataloader):
         boxes_list = [target[:, :4] for target in targets]
         print(targets)
-        draw_serveral_images(images, boxes_list, mode="xywh", normalized=True, size=input_image_size)
+        print(targets.shape)
+        # draw_serveral_images(images, boxes_list, mode="xywh", normalized=True, size=input_image_size)
         if i >= 6:
             break

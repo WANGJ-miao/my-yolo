@@ -61,11 +61,56 @@ class SimpleYOLO(nn.Module):
         )
 
     def forward(self, x):
+        """
+        output tensor shape:
+        [N, S, S, 25]
+        """
         x = self.backbone(x)
         x = self.pool(x)
         x = self.head(x)
         x = x.permute(0, 2, 3, 1)
+        x[..., :4] = torch.sigmoid(x[..., :4])
         return x
+
+class SimpleYoloLoss(nn.Module):
+    """
+    针对一个/一组结果进行损失计算
+    [boxes(4), objectness(1), classes_pred(20)]
+    """
+    def __init__(self):
+        super().__init__()
+        self.box_loss_fn = nn.MSELoss()
+        self.objectness_loss_fn = nn.BCEWithLogitsLoss()
+        self.classes_loss_fn = nn.BCEWithLogitsLoss()
+
+    def forward(self, pred, target):
+        """
+        target: torch tensor, dim=[N, S, S, 25]
+        pred: torch tensor, dim=[N, S, S, 25]
+        """
+        target_box = target[..., 0:4]
+        target_objectness = target[..., 4]
+        target_classes = target[..., 5:]
+
+        pred_box = pred[..., 0:4]
+        pred_objectness = pred[..., 4]
+        pred_classes = pred[..., 5:]
+
+        positive_mask = target_objectness.bool()
+
+        target_box_pos = target_box[positive_mask]
+        target_classes_pos = target_classes[positive_mask]
+        pred_box_pos = pred_box[positive_mask]
+        pred_classes_pos = pred_classes[positive_mask]
+
+        objectness_loss = self.objectness_loss_fn(pred_objectness, target_objectness)
+        box_loss = self.box_loss_fn(pred_box_pos, target_box_pos)
+        class_loss = self.classes_loss_fn(pred_classes_pos, target_classes_pos)
+
+        loss = box_loss + objectness_loss + class_loss;
+
+        return loss
+
 
 if __name__ == "__main__":
     model = SimpleYOLO(S=7, num_classes=20)
