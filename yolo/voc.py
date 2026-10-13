@@ -4,6 +4,7 @@
 # Indoor: bottle, chair, dining table, potted plant, sofa, tv/monitor
 
 import math
+import random
 
 import torch
 from pathlib import Path
@@ -199,7 +200,7 @@ def encode_targets(targets, S=7):
     """
     new_targets = []
     for target in targets:
-        new_targets.append(encode_target(target))
+        new_targets.append(encode_target(target, S))
     return new_targets
 
 def default_collate_fn(batch):
@@ -212,19 +213,29 @@ def default_collate_fn(batch):
     return images, targets
 
 class DataLoader():
-    """provide __iter__ method, returning data batch"""
-    def __init__(self, dataset, batch_size, shuffle=True, collate_fn=default_collate_fn):
+    """
+    provide __iter__ method, returning data batch
+    yield images, targets
+    """
+    def __init__(self, dataset, batch_size, shuffle=True, collate_fn=default_collate_fn, seed=None):
         # TODO implement shuffle
         self.batch_size = batch_size
         self.dataset = dataset
         self.collate_fn = collate_fn
+        self.shuffle = shuffle
+        self.rng = random.Random(seed) # random number generator
 
     def __iter__(self):
+        indices = list(range(len(self.dataset)))
+        if self.shuffle:
+            self.rng.shuffle(indices)
         for batch_start in range(0, len(self.dataset), self.batch_size):
             batch = []
             for i in range(batch_start, min(batch_start + self.batch_size, len(self.dataset))):
                 # 目前是如果最后一个batch不够分, 就有多少返回多少
-                sample = self.dataset[i]
+                sample_index = indices[i]
+                print(indices[i])
+                sample = self.dataset[sample_index]
                 batch.append(sample)
             images, targets = self.collate_fn(batch)
             targets=encode_targets(targets)
@@ -234,11 +245,11 @@ class DataLoader():
 if __name__ == "__main__":
     # test
     dataset = VOCDataset()
-    dataloader = DataLoader(dataset, batch_size=4)
+    dataloader = DataLoader(dataset, batch_size=4, seed=42)
     for i, (images, targets) in enumerate(dataloader):
-        boxes_list = [target[:, :4] for target in targets]
-        print(targets)
-        print(targets.shape)
+        # boxes_list = [target[:, :4] for target in targets]
+        # print(targets)
+        # print(targets.shape)
         # draw_serveral_images(images, boxes_list, mode="xywh", normalized=True, size=input_image_size)
         if i >= 6:
             break

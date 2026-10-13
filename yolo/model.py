@@ -51,7 +51,7 @@ class SimpleYOLO(nn.Module):
             ConvBlock(128, 256, stride=2),
             ConvBlock(256, 512, stride=2),
             ConvBlock(512, 512, stride=2),
-            ConvBlock(512, 512, stride=2),
+            # ConvBlock(512, 512, stride=2),
         )
         self.pool = nn.AdaptiveAvgPool2d((S, S))
         self.head = nn.Conv2d(
